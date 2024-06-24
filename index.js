@@ -736,6 +736,166 @@ app.get("/api/orders/user-history", verifyToken, async (req, res) => {
   }
 });
 
+   app.post("/api/register", async (req, res) => {
+      const { name, email, password, photoURL, role = "user" } = req.body;
+      const passwordRegex = /^(?=.*[a-z])(?=.*[A-Z]).{6,}$/;
+      if (!passwordRegex.test(password)) {
+        return res.status(400).json({
+          message:
+            "Password must have an uppercase letter, a lowercase letter, and be at least 6 characters long.",
+        });
+      }
+
+      try {
+        const existingUser = await users.findOne({ email });
+        if (existingUser) {
+          return res.status(409).json({ message: "User already exists" });
+        }
+
+        const hashedPassword = await bcrypt.hash(password, 10);
+        const result = await users.insertOne({
+          name,
+          email,
+          role,
+          password: hashedPassword,
+          photoURL: photoURL || "",
+          createdAt: new Date(),
+        });
+
+        const token = jwt.sign({ id: result.insertedId, email }, JWT_SECRET, {
+          expiresIn: "7d",
+        });
+
+        res
+          .status(201)
+          .json({ message: "User registered successfully", token });
+      } catch (err) {
+        res.status(500).json({ message: "Internal server error" });
+      }
+    });
+
+app.get("/api/users", verifyToken, async (req, res) => {
+  if (req.user.role !== "admin") {
+    return res.status(403).json({ message: "Forbidden" });
+  }
+
+  const page = parseInt(req.query.page) || 1; // Default to page 1
+  const limit = parseInt(req.query.limit) || 10; // Default to 10 users per page
+  const skip = (page - 1) * limit;
+
+  try {
+    const totalUsers = await users.countDocuments();
+    const allUsers = await users.find().skip(skip).limit(limit).toArray();
+
+    res.json({
+      users: allUsers,
+      totalPages: Math.ceil(totalUsers / limit),
+      currentPage: page,
+    });
+  } catch (err) {
+    console.error("Error fetching paginated users:", err);
+    res.status(500).json({ message: "Failed to fetch users" });
+  }
+});
+
+
+app.patch("/api/users/:id/role", verifyToken, async (req, res) => {
+  if (req.user.role !== "admin") {
+    return res.status(403).json({ message: "Forbidden" });
+  }
+
+  const { id } = req.params;
+  const { role } = req.body;
+
+  if (!["user", "seller", "admin"].includes(role)) {
+    return res.status(400).json({ message: "Invalid role" });
+  }
+
+  try {
+    await users.updateOne({ _id: new ObjectId(id) }, { $set: { role } });
+    res.json({ message: "Role updated" });
+  } catch (err) {
+    res.status(500).json({ message: "Failed to update role" });
+  }
+});
+
+app.post("/api/login", async (req, res) => {
+  const { email, password } = req.body;
+
+  try {
+    const user = await users.findOne({ email });
+    if (!user) {
+      return res.status(400).send("User not found");
+    }
+
+    const isMatch = await bcrypt.compare(password, user.password);
+    if (!isMatch) {
+      return res.status(400).send("Invalid credentials");
+    }
+
+    const token = jwt.sign(
+      { id: user._id, email: user.email, role: user.role },
+      JWT_SECRET,
+      { expiresIn: "1h" }
+    );
+
+    // ✅ Return complete user info explicitly
+    res.json({
+      token,
+      user: {
+        name: user.name,
+        email: user.email,
+        role: user.role,
+        photoURL: user.photoURL || "",
+      },
+    });
+  } catch (err) {
+    console.error("Login error:", err);
+    res.status(500).send("Server error");
+  }
+});
+
+
+   app.post("/api/save-user", async (req, res) => {
+  const { name, email, photoURL, role = "user" } = req.body;
+
+  try {
+    let user = await users.findOne({ email });
+
+    if (!user) {
+      const result = await users.insertOne({
+        name,
+        email,
+        role,
+        photoURL: photoURL || "",
+        createdAt: new Date(),
+      });
+      user = await users.findOne({ _id: result.insertedId });
+    }
+
+    const token = jwt.sign(
+      { id: user._id, email, role: user.role },
+      JWT_SECRET,
+      { expiresIn: "7d" }
+    );
+
+    // ✅ Return full user info explicitly
+    res.status(200).json({
+      message: "User saved",
+      token,
+      user: {
+        name: user.name,
+        email: user.email,
+        role: user.role,
+        photoURL: user.photoURL || "",
+      },
+    });
+  } catch (err) {
+    console.error("Save Google user error:", err);
+    res.status(500).json({ message: "Internal server error" });
+  }
+});
+
 
     // Other routes and logic...
   } catch (err) {
