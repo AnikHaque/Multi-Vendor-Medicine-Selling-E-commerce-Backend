@@ -474,6 +474,157 @@ app.delete("/api/cart", verifyToken, async (req, res) => {
   }
 });
 
+const orders = db.collection("orders");
+// Create Stripe checkout session endpoint
+app.post("/api/create-checkout-session", verifyToken, async (req, res) => {
+  const userEmail = req.user.email;
+
+  try {
+    // Fetch user's cart items with medicine details (same aggregation as /api/cart)
+    const userCart = await carts.aggregate([
+      { $match: { userEmail } },
+      {
+        $lookup: {
+          from: "medicines",
+          localField: "medicineId",
+          foreignField: "_id",
+          as: "medicineDetails",
+        },
+      },
+      { $unwind: "$medicineDetails" },
+    ]).toArray();
+
+    if (userCart.length === 0) {
+      return res.status(400).json({ message: "Cart is empty" });
+    }
+
+    // Prepare line items for Stripe
+    const line_items = userCart.map((item) => ({
+      price_data: {
+        currency: "usd",
+        product_data: {
+          name: item.medicineDetails.name,
+          images: [item.medicineDetails.image || "https://via.placeholder.com/150"],
+        },
+        unit_amount: Math.round(item.medicineDetails.price * 100), // cents
+      },
+      quantity: item.quantity,
+    }));
+
+   const session = await stripe.checkout.sessions.create({
+  payment_method_types: ["card"],
+  mode: "payment",
+  customer_email: req.user.email, // ✅ Add this
+  line_items,
+  success_url: `http://localhost:5173/invoice?session_id={CHECKOUT_SESSION_ID}`,
+  cancel_url: "http://localhost:3000/cart",
+});
+
+
+    res.json({ url: session.url });
+  } catch (error) {
+    console.error("Stripe checkout session error:", error);
+    res.status(500).json({ message: "Failed to create checkout session" });
+  }
+});
+
+
+app.get("/api/order/:sessionId", verifyToken, async (req, res) => {
+  const { sessionId } = req.params;
+  const userEmail = req.user.email;
+
+  try {
+    const session = await stripe.checkout.sessions.retrieve(sessionId, {
+      expand: ["line_items", "customer"],
+    });
+
+    const stripeEmail = session?.customer_details?.email;
+
+    if (stripeEmail && stripeEmail !== userEmail) {
+      return res.status(403).json({ message: "Unauthorized access to order" });
+    }
+
+    let order = await orders.findOne({ sessionId });
+
+    if (!order) {
+      // 🛒 Fetch user's cart with medicine details
+      const cartItems = await carts.aggregate([
+        { $match: { userEmail } },
+        {
+          $lookup: {
+            from: "medicines",
+            localField: "medicineId",
+            foreignField: "_id",
+            as: "medicineDetails",
+          },
+        },
+        { $unwind: "$medicineDetails" },
+      ]).toArray();
+
+      // 🧾 Build order with sellerEmail & medicineId
+      const lineItems = session.line_items.data.map((li, index) => ({
+        name: li.description,
+        quantity: li.quantity,
+        amount: li.amount_total / 100,
+        medicineId: cartItems[index]?.medicineId,
+        sellerEmail: cartItems[index]?.medicineDetails?.sellerEmail || "unknown",
+      }));
+
+      order = {
+        sessionId,
+        userEmail,
+        customer: session.customer_details || { name: "Guest", email: userEmail },
+        amount_total: session.amount_total / 100,
+        payment_status: session.payment_status,
+        status: "pending", // ⏳ Payment done, waiting for approval
+        line_items: lineItems,
+        createdAt: new Date(),
+      };
+
+      await orders.insertOne(order);
+      await carts.deleteMany({ userEmail });
+    }
+
+    res.json(order);
+  } catch (error) {
+    console.error("❌ Failed to fetch order:", error);
+    res.status(500).json({ message: "Internal Server Error" });
+  }
+});
+
+app.get("/api/orders", async (req, res) => {
+  try {
+    const allOrders = await orders.find().toArray();
+    res.json(allOrders);
+  } catch (err) {
+    console.error("Failed to fetch orders", err);
+    res.status(500).json({ message: "Failed to fetch orders" });
+  }
+});
+
+
+// Get all orders that include medicines sold by current seller/admin
+app.get("/api/seller/orders", verifyToken, async (req, res) => {
+  const sellerEmail = req.user.email;
+
+  try {
+    const sellerOrders = await orders
+      .find({ "line_items.sellerEmail": sellerEmail })
+      .toArray();
+
+    // Filter line_items to only include current seller's items
+    const filtered = sellerOrders.map((order) => ({
+      ...order,
+      line_items: order.line_items.filter((li) => li.sellerEmail === sellerEmail),
+    }));
+
+    res.status(200).json(filtered);
+  } catch (err) {
+    console.error("Error fetching seller orders:", err);
+    res.status(500).json({ message: "Error fetching seller orders" });
+  }
+});
+
     // Other routes and logic...
   } catch (err) {
     console.error("❌ Error connecting to MongoDB:", err);
