@@ -625,6 +625,105 @@ app.get("/api/seller/orders", verifyToken, async (req, res) => {
   }
 });
 
+  // --- Admin: Get all payments (orders) ---
+    app.get("/api/payments", verifyToken, async (req, res) => {
+      if (req.user.role !== "admin") {
+        return res.status(403).json({ message: "Forbidden" });
+      }
+      try {
+        const payments = await orders.find().toArray();
+        res.json(payments);
+      } catch (err) {
+        res.status(500).json({ message: "Failed to fetch payments" });
+      }
+    });
+
+    // --- Admin: Approve payment (change status pending => paid) ---
+    app.put("/api/payments/:id/approve", verifyToken, async (req, res) => {
+      if (req.user.role !== "admin") {
+        return res.status(403).json({ message: "Forbidden" });
+      }
+
+      const { id } = req.params;
+
+      try {
+        const result = await orders.updateOne(
+          { _id: new ObjectId(id), status: "pending" },
+          { $set: { status: "paid" } }
+        );
+
+        if (result.modifiedCount === 0) {
+          return res.status(400).json({ message: "Order not found or already approved" });
+        }
+
+        res.json({ message: "Payment approved and marked as paid" });
+      } catch (err) {
+        res.status(500).json({ message: "Failed to update payment status" });
+      }
+    });
+
+
+app.get("/api/sales", verifyToken, async (req, res) => {
+  if (req.user.role !== "admin") return res.status(403).json({ message: "Forbidden" });
+
+  const { startDate, endDate } = req.query;
+
+  const filter = {};
+  if (startDate && endDate) {
+    filter.createdAt = {
+      $gte: new Date(startDate),
+      $lte: new Date(endDate),
+    };
+  }
+
+  try {
+    const sales = await orders.find(filter).toArray();
+    res.json(sales);
+  } catch (err) {
+    console.error("Error fetching sales:", err);
+    res.status(500).json({ message: "Failed to fetch sales" });
+  }
+});
+
+app.get("/api/payment-history", verifyToken, async (req, res) => {
+  const sellerEmail = req.user.email;
+
+  try {
+    const ordersForSeller = await orders
+      .find({
+        "line_items.sellerEmail": sellerEmail,
+      })
+      .toArray();
+
+    const filteredOrders = ordersForSeller.map((order) => {
+      const sellerItems = order.line_items.filter(
+        (item) => item.sellerEmail === sellerEmail
+      );
+
+      return {
+        orderId: order._id,
+        sessionId: order.sessionId,
+        buyerEmail: order.userEmail,
+        payment_status: order.payment_status,
+        status: order.status,
+        amount_total: sellerItems.reduce((acc, item) => acc + item.amount, 0),
+        line_items: sellerItems,
+        createdAt: order.createdAt,
+      };
+    });
+
+    if (filteredOrders.length === 0) {
+      return res.json({ message: "No purchase history found." });
+    }
+
+    res.json(filteredOrders);
+  } catch (error) {
+    console.error("Failed to fetch payment history:", error);
+    res.status(500).json({ message: "Internal server error" });
+  }
+});
+
+
     // Other routes and logic...
   } catch (err) {
     console.error("❌ Error connecting to MongoDB:", err);
