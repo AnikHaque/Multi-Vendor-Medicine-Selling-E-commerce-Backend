@@ -739,7 +739,7 @@ app.get("/api/orders/user-history", verifyToken, async (req, res) => {
 
     // Other routes and logic...
   } catch (err) {
-    console.error("❌ Error connecting to MongoDB:", err);
+    console.error(" Error connecting to MongoDB:", err);
   }
 }
 
