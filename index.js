@@ -723,6 +723,19 @@ app.get("/api/payment-history", verifyToken, async (req, res) => {
   }
 });
 
+// User Payment History
+app.get("/api/orders/user-history", verifyToken, async (req, res) => {
+  const userEmail = req.user.email;
+
+  try {
+    const ordersList = await orders.find({ userEmail }).sort({ createdAt: -1 }).toArray();
+    res.status(200).json(ordersList);
+  } catch (err) {
+    console.error("Error fetching user payment history:", err);
+    res.status(500).json({ message: "Failed to fetch payment history" });
+  }
+});
+
 
     // Other routes and logic...
   } catch (err) {
