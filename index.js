@@ -312,6 +312,19 @@ app.post("/api/advertise", verifyToken, async (req, res) => {
   }
 });
 
+app.get("/api/advertise/mine", verifyToken, async (req, res) => {
+  try {
+    const ads = await client
+      .db("freelance-marketplace")
+      .collection("advertisements")
+      .find({ sellerEmail: req.user.email })
+      .toArray();
+
+    res.json(ads);
+  } catch (err) {
+    res.status(500).json({ message: "Error fetching advertisements" });
+  }
+});
 
     // Other routes and logic...
   } catch (err) {
