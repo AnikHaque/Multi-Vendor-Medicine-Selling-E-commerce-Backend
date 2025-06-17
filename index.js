@@ -326,6 +326,154 @@ app.get("/api/advertise/mine", verifyToken, async (req, res) => {
   }
 });
 
+const carts = db.collection("carts");
+// Get cart items for logged in user
+app.get("/api/cart", verifyToken, async (req, res) => {
+  try {
+    const userEmail = req.user.email;
+
+    // Populate cart with medicine info
+    const userCart = await carts.aggregate([
+      { $match: { userEmail } },
+      {
+        $lookup: {
+          from: "medicines",
+          localField: "medicineId",
+          foreignField: "_id",
+          as: "medicineDetails",
+        },
+      },
+      { $unwind: "$medicineDetails" },
+      {
+        $project: {
+          _id: 1,
+          medicineId: 1,
+          quantity: 1,
+          "medicineDetails._id": 1,
+          "medicineDetails.name": 1,
+          "medicineDetails.company": 1,
+          "medicineDetails.price": 1,
+          "medicineDetails.discount": 1,
+          "medicineDetails.image": 1,
+        },
+      },
+    ]).toArray();
+
+    res.status(200).json(userCart);
+  } catch (error) {
+    console.error("Error fetching cart:", error);
+    res.status(500).json({ message: "Error fetching cart" });
+  }
+});
+
+// Add medicine to cart or increment quantity
+app.post("/api/cart", verifyToken, async (req, res) => {
+  const { medicineId } = req.body;
+  const userEmail = req.user.email;
+
+  if (!medicineId) {
+    return res.status(400).json({ message: "medicineId is required" });
+  }
+
+  try {
+    const medObjectId = new ObjectId(medicineId);
+
+    // Check if medicine exists
+    const medicine = await db.collection("medicines").findOne({ _id: medObjectId });
+    if (!medicine) {
+      return res.status(404).json({ message: "Medicine not found" });
+    }
+
+    // Check if already in cart
+    const existing = await carts.findOne({ userEmail, medicineId: medObjectId });
+
+    if (existing) {
+      // Increment quantity by 1
+      await carts.updateOne(
+        { _id: existing._id },
+        { $inc: { quantity: 1 } }
+      );
+    } else {
+      // Insert new cart item with quantity 1
+      await carts.insertOne({
+        userEmail,
+        medicineId: medObjectId,
+        quantity: 1,
+        createdAt: new Date(),
+      });
+    }
+
+    res.status(200).json({ message: "Added to cart" });
+  } catch (error) {
+    console.error("Error adding to cart:", error);
+    res.status(500).json({ message: "Error adding to cart" });
+  }
+});
+
+// Update quantity of a cart item
+app.put("/api/cart/:id", verifyToken, async (req, res) => {
+  const cartItemId = req.params.id;
+  const { quantity } = req.body;
+  const userEmail = req.user.email;
+
+  if (quantity === undefined || quantity < 1) {
+    return res.status(400).json({ message: "Quantity must be at least 1" });
+  }
+
+  try {
+    const cartItem = await carts.findOne({ _id: new ObjectId(cartItemId), userEmail });
+
+    if (!cartItem) {
+      return res.status(404).json({ message: "Cart item not found" });
+    }
+
+    await carts.updateOne(
+      { _id: cartItem._id },
+      { $set: { quantity } }
+    );
+
+    res.status(200).json({ message: "Quantity updated" });
+  } catch (error) {
+    console.error("Error updating cart quantity:", error);
+    res.status(500).json({ message: "Error updating cart" });
+  }
+});
+
+// Remove an item from cart
+app.delete("/api/cart/:id", verifyToken, async (req, res) => {
+  const cartItemId = req.params.id;
+  const userEmail = req.user.email;
+
+  try {
+    const cartItem = await carts.findOne({ _id: new ObjectId(cartItemId), userEmail });
+
+    if (!cartItem) {
+      return res.status(404).json({ message: "Cart item not found" });
+    }
+
+    await carts.deleteOne({ _id: cartItem._id });
+
+    res.status(200).json({ message: "Removed from cart" });
+  } catch (error) {
+    console.error("Error removing cart item:", error);
+    res.status(500).json({ message: "Error removing cart item" });
+  }
+});
+
+// Clear all cart items for user
+app.delete("/api/cart", verifyToken, async (req, res) => {
+  const userEmail = req.user.email;
+
+  try {
+    await carts.deleteMany({ userEmail });
+
+    res.status(200).json({ message: "Cart cleared" });
+  } catch (error) {
+    console.error("Error clearing cart:", error);
+    res.status(500).json({ message: "Error clearing cart" });
+  }
+});
+
     // Other routes and logic...
   } catch (err) {
     console.error("❌ Error connecting to MongoDB:", err);
