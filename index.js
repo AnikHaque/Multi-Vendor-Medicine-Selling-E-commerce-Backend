@@ -897,7 +897,6 @@ app.post("/api/login", async (req, res) => {
 });
 
 
-    // Other routes and logic...
   } catch (err) {
     console.error(" Error connecting to MongoDB:", err);
   }
@@ -905,7 +904,6 @@ app.post("/api/login", async (req, res) => {
 
 run().catch(console.dir);
 
-//  Root route to check DB connection
 app.get("/", async (req, res) => {
   try {
     await client.db("admin").command({ ping: 1 });
@@ -915,7 +913,6 @@ app.get("/", async (req, res) => {
   }
 });
 
-// 🚀 Start the server
 app.listen(port, () => {
   console.log(`🚀 Server is running on http://localhost:${port}`);
 });
