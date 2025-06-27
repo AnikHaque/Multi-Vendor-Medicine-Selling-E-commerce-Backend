@@ -286,6 +286,32 @@ app.get("/api/medicines/banner", async (req, res) => {
   }
 });
 
+app.post("/api/advertise", verifyToken, async (req, res) => {
+  const { medicineId, image, description } = req.body;
+  const sellerEmail = req.user.email;
+
+  if (!medicineId || !image || !description) {
+    return res.status(400).json({ message: "All fields are required." });
+  }
+
+  try {
+    const ad = {
+      sellerEmail,
+      medicineId: new ObjectId(medicineId),
+      image,
+      description,
+      approved: false,
+      createdAt: new Date(),
+    };
+
+    const result = await client.db("freelance-marketplace").collection("advertisements").insertOne(ad);
+    res.status(201).json({ message: "Advertisement request submitted", ad: result });
+  } catch (error) {
+    console.error("Error submitting ad:", error);
+    res.status(500).json({ message: "Error submitting advertisement" });
+  }
+});
+
 
     // Other routes and logic...
   } catch (err) {
