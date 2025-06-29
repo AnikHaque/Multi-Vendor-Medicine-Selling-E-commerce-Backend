@@ -243,6 +243,20 @@ app.get("/api/seller-payments", verifyToken, async (req, res) => {
   }
 });
 
+// GET medicines by category
+app.get("/api/medicines/category/:category", async (req, res) => {
+  const { category } = req.params;
+  try {
+    const medicinesList = await db.collection("medicines")
+      .find({ category })
+      .toArray();
+    res.status(200).json(medicinesList);
+  } catch (error) {
+    console.error("Error fetching medicines by category:", error);
+    res.status(500).json({ message: "Error fetching medicines" });
+  }
+});
+
     // Other routes and logic...
   } catch (err) {
     console.error("❌ Error connecting to MongoDB:", err);
