@@ -200,6 +200,49 @@ app.get("/api/my-medicines", verifyToken, async (req, res) => {
   }
 });
 
+// seller payment 
+app.get("/api/seller-payments", verifyToken, async (req, res) => {
+  const sellerEmail = req.user.email;
+
+  try {
+    const sellerOrders = await orders.aggregate([
+      { $unwind: "$line_items" },
+      {
+        $lookup: {
+          from: "medicines",
+          localField: "line_items.medicineId",
+          foreignField: "_id",
+          as: "medicineDetails"
+        }
+      },
+      { $unwind: "$medicineDetails" },
+      {
+        $match: {
+          "medicineDetails.sellerEmail": sellerEmail
+        }
+      },
+      {
+        $project: {
+          _id: 0,
+          medicineName: "$medicineDetails.name",
+          buyerEmail: "$userEmail",
+          quantity: "$line_items.quantity",
+          amount: "$line_items.amount",
+          payment_status: 1,
+          status: 1,
+          createdAt: 1
+        }
+      },
+      { $sort: { createdAt: -1 } }
+    ]).toArray();
+
+    res.json(sellerOrders);
+  } catch (error) {
+    console.error("Error fetching seller payments:", error);
+    res.status(500).json({ message: "Internal server error" });
+  }
+});
+
     // Other routes and logic...
   } catch (err) {
     console.error("❌ Error connecting to MongoDB:", err);
