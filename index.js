@@ -276,6 +276,17 @@ app.put("/api/medicines/:id/toggle-banner", verifyToken,  async (req, res) => {
   }
 });
 
+// GET /api/medicines/banner
+app.get("/api/medicines/banner", async (req, res) => {
+  try {
+    const banners = await medicines.find({ isBanner: true }).toArray();
+    res.status(200).json(banners);
+  } catch (err) {
+    res.status(500).json({ message: "Failed to fetch banner medicines" });
+  }
+});
+
+
     // Other routes and logic...
   } catch (err) {
     console.error("❌ Error connecting to MongoDB:", err);
