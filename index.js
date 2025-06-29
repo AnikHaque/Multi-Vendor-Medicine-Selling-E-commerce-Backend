@@ -257,6 +257,25 @@ app.get("/api/medicines/category/:category", async (req, res) => {
   }
 });
 
+// PUT /api/medicines/:id/toggle-banner
+app.put("/api/medicines/:id/toggle-banner", verifyToken,  async (req, res) => {
+  const { id } = req.params;
+
+  try {
+    const medicine = await medicines.findOne({ _id: new ObjectId(id) });
+    if (!medicine) return res.status(404).json({ message: "Medicine not found" });
+
+    const updated = await medicines.updateOne(
+      { _id: new ObjectId(id) },
+      { $set: { isBanner: !medicine.isBanner } }
+    );
+
+    res.status(200).json({ message: `Banner status updated`, isBanner: !medicine.isBanner });
+  } catch (err) {
+    res.status(500).json({ message: "Failed to update banner status" });
+  }
+});
+
     // Other routes and logic...
   } catch (err) {
     console.error("❌ Error connecting to MongoDB:", err);
