@@ -189,6 +189,17 @@ app.get("/api/medicines", async (req, res) => {
   }
 });
 
+// Get my medicines 
+app.get("/api/my-medicines", verifyToken, async (req, res) => {
+  try {
+    const email = req.user.email;
+    const sellerMeds = await medicines.find({ sellerEmail: email }).toArray();
+    res.json(sellerMeds);
+  } catch (error) {
+    res.status(500).json({ message: "Failed to fetch seller medicines" });
+  }
+});
+
     // Other routes and logic...
   } catch (err) {
     console.error("❌ Error connecting to MongoDB:", err);
@@ -197,7 +208,7 @@ app.get("/api/medicines", async (req, res) => {
 
 run().catch(console.dir);
 
-// 🌐 Root route to check DB connection
+//  Root route to check DB connection
 app.get("/", async (req, res) => {
   try {
     await client.db("admin").command({ ping: 1 });
