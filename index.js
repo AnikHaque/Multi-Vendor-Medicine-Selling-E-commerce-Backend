@@ -129,6 +129,65 @@ app.delete("/api/categories/:id", verifyToken, async (req, res) => {
   }
 });
 
+// Medicine create 
+app.post("/api/medicines", verifyToken, async (req, res) => {
+  const {
+    name,
+    genericName,
+    description,
+    image,
+    category,
+    company,
+    unit,
+    price,
+    discount = 0,
+  } = req.body;
+
+  if (!name || !category || !company || !unit || price == null) {
+    return res.status(400).json({ message: "Missing required fields" });
+  }
+
+  try {
+    const sellerEmail = req.user.email;
+
+    const newMedicine = {
+      name,
+      genericName,
+      description: description || "",
+      image: image || "",
+      category,
+      company,
+      unit,
+      price,
+      discount,
+      sellerEmail,
+      isBanner: false,
+      createdAt: new Date(),
+    };
+
+    await medicines.insertOne(newMedicine);
+    res.status(201).json({ message: "Medicine added successfully" });
+  } catch (error) {
+    console.error("Error adding medicine:", error);
+    res.status(500).json({ message: "Failed to add medicine" });
+  }
+});
+
+// Get all medicines
+app.get("/api/medicines", async (req, res) => {
+  try {
+    const allMedicines = await client
+      .db("freelance-marketplace")
+      .collection("medicines")
+      .find()
+      .toArray();
+
+    res.status(200).json(allMedicines);
+  } catch (error) {
+    console.error("Error fetching all medicines:", error);
+    res.status(500).json({ message: "Error fetching medicines" });
+  }
+});
 
     // Other routes and logic...
   } catch (err) {
