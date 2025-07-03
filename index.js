@@ -49,6 +49,24 @@ async function run() {
 const users = db.collection("users");
   const categories = db.collection("categories");
 const medicines = db.collection("medicines");
+
+
+// Create a new medicine category
+app.post("/api/categories", verifyToken, async (req, res) => {
+  const { category, image } = req.body;
+  if (!category) return res.status(400).json({ message: "Category name is required" });
+
+  try {
+    const existing = await categories.findOne({ category });
+    if (existing) return res.status(409).json({ message: "Category already exists" });
+    const result = await categories.insertOne({ category, image: image || "" });
+    res.status(201).json({ message: "Category created",  });
+  } catch (error) {
+    console.error("Error creating category:", error);
+    res.status(500).json({ message: "Error creating category" });
+  }
+});
+
     // Other routes and logic...
   } catch (err) {
     console.error("❌ Error connecting to MongoDB:", err);
