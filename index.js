@@ -117,6 +117,18 @@ app.put("/api/categories/:id", verifyToken, async (req, res) => {
   }
 });
 
+// Delete category 
+app.delete("/api/categories/:id", verifyToken, async (req, res) => {
+  const { id } = req.params;
+  try {
+    await categories.deleteOne({ _id: new ObjectId(id) });
+    res.json({ message: "Category deleted" });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ message: "Failed to delete category" });
+  }
+});
+
 
     // Other routes and logic...
   } catch (err) {
