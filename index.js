@@ -67,6 +67,57 @@ app.post("/api/categories", verifyToken, async (req, res) => {
   }
 });
 
+// Get all categories with medicine count 
+app.get("/api/categories", async (req, res) => {
+  try {
+    const data = await categories
+      .aggregate([
+        {
+          $lookup: {
+            from: "medicines",
+            localField: "category",
+            foreignField: "category",
+            as: "medicines",
+          },
+        },
+        {
+          $addFields: {
+            count: { $size: "$medicines" },
+          },
+        },
+        {
+          $project: {
+            medicines: 0, 
+          },
+        },
+      ])
+      .toArray();
+
+    res.json(data); 
+  } catch (err) {
+    console.error("Failed to fetch categories:", err);
+    res.status(500).json({ message: "Failed to fetch categories" });
+  }
+});
+
+// Update category
+app.put("/api/categories/:id", verifyToken, async (req, res) => {
+  const { id } = req.params;
+  const { category, image } = req.body;
+  if (!category) return res.status(400).json({ message: "Category name required" });
+  try {
+    await categories.updateOne(
+      { _id: new ObjectId(id) },
+      { $set: { category, image: image || "" } }
+    );
+    res.json({ message: "Category updated" });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ message: "Failed to update category" });
+  }
+});
+
+
     // Other routes and logic...
   } catch (err) {
     console.error("❌ Error connecting to MongoDB:", err);
