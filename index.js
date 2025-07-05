@@ -46,7 +46,9 @@ function verifyToken(req, res, next) {
 async function run() {
   try {
     const db = client.db("freelance-marketplace");
-
+const users = db.collection("users");
+  const categories = db.collection("categories");
+const medicines = db.collection("medicines");
     // Other routes and logic...
   } catch (err) {
     console.error("❌ Error connecting to MongoDB:", err);
