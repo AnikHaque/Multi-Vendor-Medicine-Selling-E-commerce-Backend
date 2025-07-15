@@ -49,6 +49,7 @@ async function run() {
 const users = db.collection("users");
   const categories = db.collection("categories");
 const medicines = db.collection("medicines");
+const brands = db.collection("brands");
 
 
 // Create a new medicine category
@@ -128,6 +129,75 @@ app.delete("/api/categories/:id", verifyToken, async (req, res) => {
     res.status(500).json({ message: "Failed to delete category" });
   }
 });
+
+// Create a new medicine brand
+app.post("/api/brands", verifyToken, async (req, res) => {
+  const {
+    brandName,
+    image,
+    description,
+    country,
+    website,
+    establishedYear,
+    contactInfo,
+    address,
+    categories,
+    status,
+  } = req.body;
+
+  if (!brandName) return res.status(400).json({ message: "Brand name is required" });
+
+  try {
+    const existing = await brands.findOne({ brandName });
+    if (existing) return res.status(409).json({ message: "Brand already exists" });
+
+    const brandData = {
+      brandName,
+      image: image || "",
+      description: description || "",
+      country: country || "",
+      website: website || "",
+      establishedYear: establishedYear || null,
+      contactInfo: contactInfo || {},
+      address: address || "",
+      categories: categories || [],
+      status: status || "active",
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    };
+
+    const result = await brands.insertOne(brandData);
+    res.status(201).json({ message: "Brand created", brandId: result.insertedId });
+  } catch (error) {
+    console.error("Error creating brand:", error);
+    res.status(500).json({ message: "Error creating brand" });
+  }
+});
+
+// Get all brands (name and image for listing)
+app.get("/api/brands", async (req, res) => {
+  try {
+    const allBrands = await brands.find({}, { projection: { brandName: 1, image: 1 } }).toArray();
+    res.json(allBrands);
+  } catch (error) {
+    console.error("Error fetching brands:", error);
+    res.status(500).json({ message: "Error fetching brands" });
+  }
+});
+
+// Get full brand details by ID
+app.get("/api/brands/:id", async (req, res) => {
+  const { id } = req.params;
+  try {
+    const brand = await brands.findOne({ _id: new ObjectId(id) });
+    if (!brand) return res.status(404).json({ message: "Brand not found" });
+    res.json(brand);
+  } catch (error) {
+    console.error("Error fetching brand:", error);
+    res.status(500).json({ message: "Error fetching brand" });
+  }
+});
+
 
 // Medicine create 
 app.post("/api/medicines", verifyToken, async (req, res) => {
